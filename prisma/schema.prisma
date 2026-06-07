@@ -1,0 +1,260 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth.js Models ──────────────────────────────────────────────
+
+model User {
+  id            String                     @id @default(cuid())
+  name          String?
+  email         String                     @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole                   @default(ADMIN)
+  accounts      Account[]
+  sessions      Session[]
+  notes         ReviewerNote[]
+  statusChanges ApplicationStatusHistory[]
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ─── Core Domain Models ──────────────────────────────────────────
+
+model Applicant {
+  id            String          @id @default(cuid())
+  name          String
+  email         String          @unique
+  college       String
+  semester      String
+  whyFit        String?         @db.Text
+  planOfAction  String?         @db.Text
+  pastWork      String?         @db.Text
+  alternatives  String?         @db.Text
+  idealBoard    String?         @db.Text
+  continueIfNot Boolean         @default(true)
+  phone         String?
+  photoUrl      String?
+  status        ApplicantStatus @default(APPLIED)
+  overallScore  Int             @default(0)
+  appliedAt     DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  applications Application[]
+  notes        ReviewerNote[]
+  scores       ApplicantScore[]
+  interviews   Interview[]
+  boardSlots   BoardSlot[]
+}
+
+model Position {
+  id         String           @id @default(cuid())
+  title      String           @unique
+  shortCode  String           @unique
+  category   PositionCategory
+  level      PositionLevel
+  department String
+  slotCount  Int              @default(1)
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+
+  applications       Application[]
+  boardSlots         BoardSlot[]
+  interviewPositions InterviewPosition[]
+}
+
+model Application {
+  id          String          @id @default(cuid())
+  applicantId String
+  positionId  String
+  status      ApplicantStatus @default(APPLIED)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  applicant Applicant                  @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  position  Position                   @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  history   ApplicationStatusHistory[]
+
+  @@unique([applicantId, positionId])
+}
+
+model ReviewerNote {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  applicantId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApplicantScore {
+  id          String      @id @default(cuid())
+  applicantId String
+  dimension   String // leadership, communication, contribution, culturalFit
+  value       Int
+  source      ScoreSource @default(AI)
+  createdAt   DateTime    @default(now())
+
+  applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([applicantId, dimension, source])
+}
+
+model Interview {
+  id              String          @id @default(cuid())
+  applicantId     String
+  scheduledAt     DateTime
+  durationMinutes Int             @default(30)
+  link            String?
+  status          InterviewStatus @default(SCHEDULED)
+  
+  remarks         String?         @db.Text
+  recommendation  String?
+  panelists       String[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  applicant Applicant           @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  positions InterviewPosition[]
+}
+
+model InterviewPosition {
+  id          String    @id @default(cuid())
+  interviewId String
+  positionId  String
+  outcome     String?
+  evaluatedAt DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  position  Position  @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, positionId])
+}
+
+model BoardFormation {
+  id        String   @id @default(cuid())
+  name      String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slots BoardSlot[]
+}
+
+model BoardSlot {
+  id          String  @id @default(cuid())
+  formationId String
+  positionId  String
+  applicantId String?
+
+  formation BoardFormation @relation(fields: [formationId], references: [id], onDelete: Cascade)
+  position  Position       @relation(fields: [positionId], references: [id])
+  applicant Applicant?     @relation(fields: [applicantId], references: [id])
+
+  @@unique([formationId, positionId, applicantId])
+}
+
+model ApplicationStatusHistory {
+  id            String          @id @default(cuid())
+  applicationId String
+  fromStatus    ApplicantStatus
+  toStatus      ApplicantStatus
+  changedById   String
+  changedAt     DateTime        @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedBy   User        @relation(fields: [changedById], references: [id])
+}
+
+// ─── Enums ───────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  REVIEWER
+  VIEWER
+}
+
+enum PositionCategory {
+  EXECUTIVE
+  DEPARTMENT_HEAD
+  SUBHEAD
+}
+
+enum PositionLevel {
+  LEADERSHIP
+  HEAD
+  SUBHEAD
+}
+
+enum ApplicantStatus {
+  APPLIED
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  SELECTED
+  WAITLISTED
+  REJECTED
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  MISSED
+  RESCHEDULED
+}
+
+enum ScoreSource {
+  AI
+  MANUAL
+}
