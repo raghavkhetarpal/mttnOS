@@ -435,8 +435,7 @@ export default function Dashboard() {
     e.preventDefault(); 
   };
 
-  if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
-  if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
+
 
   const selectedApp = applicants.find(a => a.id === selectedApplicantId);
 
@@ -461,6 +460,9 @@ export default function Dashboard() {
   const upcomingInterviews = React.useMemo(() => allInterviews.filter(i => new Date(i.scheduledAt).getTime() > new Date().getTime() && new Date(i.scheduledAt).toDateString() !== new Date().toDateString()), [allInterviews]);
   const completedInterviews = React.useMemo(() => allInterviews.filter(i => i.status === 'COMPLETED'), [allInterviews]);
   const pendingScheduling = React.useMemo(() => applicants.filter(a => a.status === 'APPLIED'), [applicants]);
+
+  if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
+  if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
 
   return (
     <div className="app">
