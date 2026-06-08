@@ -282,6 +282,53 @@ export default function Dashboard() {
 
   const allRoles = (a: any) => [...(a.eb_roles || []), ...(a.mb_roles || [])];
   
+  const getHierarchyScore = (a: any) => {
+    if (!a.applications || a.applications.length === 0) return 99;
+    let best = 99;
+    a.applications.forEach((app: any) => {
+      const code = (app.position?.shortCode || '').toUpperCase();
+      let score = 6;
+      if (code === 'EIC') score = 1;
+      else if (code === 'ME') score = 2;
+      else if (code === 'HOHR') score = 3;
+      else if (code.startsWith('HO')) score = 4;
+      else if (code.startsWith('SH') || code.includes('SUBHEAD')) score = 5;
+      if (score < best) best = score;
+    });
+    return best;
+  };
+
+  const getPrimaryDepartment = (a: any) => {
+    if (!a.applications || a.applications.length === 0) return 'Unassigned';
+    let bestScore = 99;
+    let bestDept = 'Unassigned';
+    a.applications.forEach((app: any) => {
+      const code = (app.position?.shortCode || '').toUpperCase();
+      let score = 6;
+      if (code === 'EIC') score = 1;
+      else if (code === 'ME') score = 2;
+      else if (code === 'HOHR') score = 3;
+      else if (code.startsWith('HO')) score = 4;
+      else if (code.startsWith('SH') || code.includes('SUBHEAD')) score = 5;
+      if (score < bestScore) {
+        bestScore = score;
+        bestDept = app.position?.department || 'Unassigned';
+      }
+    });
+    return bestDept;
+  };
+
+  const getRoleTypeGroup = (a: any) => {
+    const score = getHierarchyScore(a);
+    if (score === 1) return 'Editor in Chief (EiC)';
+    if (score === 2) return 'Managing Editor (ME)';
+    if (score === 3) return 'Head of HR (HoHR)';
+    if (score === 4) return 'Department Heads (EB)';
+    if (score === 5) return 'SubHeads (MB)';
+    if (score === 6) return 'General Roles';
+    return 'Unassigned';
+  };
+  
   const renderRoleTags = (a: any) => {
     if (!a.applications || a.applications.length === 0) return <span style={{fontSize: '11px', color: 'var(--text3)'}}>No role</span>;
     return (
@@ -314,6 +361,14 @@ export default function Dashboard() {
       );
     }
     list.sort((a, b) => {
+      if (sortKey === 'hierarchy') {
+        const hA = getHierarchyScore(a);
+        const hB = getHierarchyScore(b);
+        if (hA !== hB) return (hA - hB) * sortDir;
+        const nA = a.name || '';
+        const nB = b.name || '';
+        return nA.localeCompare(nB) * sortDir;
+      }
       const va = a[sortKey as keyof typeof a] || '';
       const vb = b[sortKey as keyof typeof b] || '';
       if (va < vb) return -1 * sortDir;
@@ -460,6 +515,20 @@ export default function Dashboard() {
   const upcomingInterviews = React.useMemo(() => allInterviews.filter(i => new Date(i.scheduledAt).getTime() > new Date().getTime() && new Date(i.scheduledAt).toDateString() !== new Date().toDateString()), [allInterviews]);
   const completedInterviews = React.useMemo(() => allInterviews.filter(i => i.status === 'COMPLETED'), [allInterviews]);
   const pendingScheduling = React.useMemo(() => applicants.filter(a => a.status === 'APPLIED'), [applicants]);
+
+  const groupedAts = React.useMemo(() => {
+    if (filterGroup === 'None') return { 'All Applicants': atsList };
+    const groups: Record<string, any[]> = {};
+    atsList.forEach(a => {
+      let g = 'Unassigned';
+      if (filterGroup === 'Department') g = getPrimaryDepartment(a);
+      else if (filterGroup === 'RoleType') g = getRoleTypeGroup(a);
+      else if (filterGroup === 'Status') g = STATUS_LABELS[a.status as keyof typeof STATUS_LABELS] || a.status;
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(a);
+    });
+    return groups;
+  }, [atsList, filterGroup]);
 
   if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
   if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
@@ -682,6 +751,13 @@ export default function Dashboard() {
                 <option value="name">Sort: Name</option>
                 <option value="college">Sort: College</option>
                 <option value="semester">Sort: Semester</option>
+                <option value="hierarchy">Sort: Position Hierarchy</option>
+              </select>
+              <select className="filter-btn" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
+                <option value="None">Group By: None</option>
+                <option value="Department">Group By: Department</option>
+                <option value="RoleType">Group By: Role Type</option>
+                <option value="Status">Group By: Interview Status</option>
               </select>
             </div>
             <div className="table-wrap">
@@ -695,26 +771,37 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {atsList.map(a => (
-                    <tr key={a.id} onClick={() => setSelectedApplicantId(a.id)}>
-                      <td>
-                        <div className="name-cell">
-                          <div className="avatar-sm" style={{background: avatarColor(a.id)}}>{initials(a.name)}</div>
-                          <div>
-                            <div className="td-name">{a.name}</div>
-                            <div className="td-meta">{a.email} {a.phone ? `· ${a.phone}` : ''}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className={`tag tag-${(a.college||'').toLowerCase()}`}>{a.college}</span></td>
-                      <td style={{fontSize: '12px', color: 'var(--text3)'}}>{renderRoleTags(a)}</td>
-                      <td><span className={`status-badge ${STATUS_CLASS[a.status] || ''}`}>{STATUS_LABELS[a.status] || a.status}</span></td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <select className="status-select" value={a.status} onChange={(e) => updateStatusMut.mutate({ id: a.id, status: e.target.value as ApplicantStatus })}>
-                          {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                        </select>
-                      </td>
-                    </tr>
+                  {Object.entries(groupedAts).map(([groupName, applicantsInGroup]) => (
+                    <React.Fragment key={groupName}>
+                      {filterGroup !== 'None' && (
+                        <tr>
+                          <td colSpan={5} style={{ background: 'var(--bg2)', color: 'var(--text)', fontWeight: 600, fontSize: '12px', padding: '12px 16px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>
+                            {groupName} <span style={{ color: 'var(--text3)', marginLeft: '8px' }}>({applicantsInGroup.length})</span>
+                          </td>
+                        </tr>
+                      )}
+                      {applicantsInGroup.map(a => (
+                        <tr key={a.id} onClick={() => setSelectedApplicantId(a.id)}>
+                          <td>
+                            <div className="name-cell">
+                              <div className="avatar-sm" style={{background: avatarColor(a.id)}}>{initials(a.name)}</div>
+                              <div>
+                                <div className="td-name">{a.name}</div>
+                                <div className="td-meta">{a.email} {a.phone ? `· ${a.phone}` : ''}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td><span className={`tag tag-${(a.college||'').toLowerCase()}`}>{a.college}</span></td>
+                          <td style={{fontSize: '12px', color: 'var(--text3)'}}>{renderRoleTags(a)}</td>
+                          <td><span className={`status-badge ${STATUS_CLASS[a.status as keyof typeof STATUS_CLASS] || ''}`}>{STATUS_LABELS[a.status as keyof typeof STATUS_LABELS] || a.status}</span></td>
+                          <td onClick={e => e.stopPropagation()}>
+                            <select className="status-select" value={a.status} onChange={(e) => updateStatusMut.mutate({ id: a.id, status: e.target.value as ApplicantStatus })}>
+                              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s as keyof typeof STATUS_LABELS]}</option>)}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
