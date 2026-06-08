@@ -199,3 +199,107 @@ tr:hover td { background: var(--bg3); cursor: pointer; }
 
 .inline-flex { display: inline-flex; align-items: center; gap: 6px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+/* 
+  ===========================================
+  RESPONSIVE DESIGN (MOBILE & TABLET SUPPORT)
+  ===========================================
+*/
+
+/* TABLET (max-width: 1024px) */
+@media (max-width: 1024px) {
+  .app { flex-direction: column; }
+  
+  /* Sidebar Drawer */
+  .sidebar { 
+    position: fixed; 
+    top: 0; bottom: 0; left: 0; 
+    z-index: 1000; 
+    transform: translateX(-100%); 
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar.open { transform: translateX(0); }
+  
+  .sidebar-overlay { 
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 999; 
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .sidebar-overlay.open { opacity: 1; pointer-events: all; }
+  
+  /* Topbar */
+  .topbar { padding: 0 16px; height: 64px; }
+  .hamburger { display: block; font-size: 24px; cursor: pointer; color: var(--text); background: none; border: none; padding: 8px; margin-right: 12px; }
+  
+  /* Applicant Profile Panel */
+  .profile-panel { width: 90%; height: 90vh; }
+  
+  /* Tables and Kanban */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .kanban { padding-bottom: 24px; }
+  
+  /* Charts */
+  .charts-row, .charts-3col, .charts-wide { grid-template-columns: 1fr; }
+  
+  /* Board formation */
+  .board-wrapper { flex-direction: column; height: auto; }
+  .board-candidates { flex: none; width: 100%; height: 400px; }
+  .board-assign-mobile { display: block; }
+}
+
+/* DESKTOP (min-width: 1025px) */
+@media (min-width: 1025px) {
+  .hamburger { display: none; }
+  .sidebar-overlay { display: none; }
+  .sidebar-close { display: none; }
+  
+  .board-wrapper { display: flex; gap: 20px; height: calc(100vh - 180px); }
+  .board-candidates { flex: 0 0 300px; background: var(--bg2); border-radius: 12px; padding: 16px; overflow-y: auto; border: 1px solid var(--border); }
+  .board-slots-area { flex: 1; overflow-y: auto; padding-right: 10px; }
+  .board-assign-mobile { display: none; }
+}
+
+/* MOBILE (max-width: 640px) */
+@media (max-width: 640px) {
+  /* Typography & Spacing */
+  .content { padding: 16px; }
+  .page-title { font-size: 18px; }
+  
+  /* Sidebar adjustments */
+  .sidebar { width: 80%; max-width: 300px; }
+  .sidebar-close { display: block; position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; }
+  
+  /* KPIs */
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  
+  /* Applicant Profile Panel Full Screen */
+  .profile-panel { width: 100%; height: 100vh; border-radius: 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .profile-overlay.open .profile-panel { transform: translateY(0); scale: 1; }
+  
+  /* Topbar adjustments */
+  .topbar-right { gap: 8px; }
+  .search-box { width: 160px; padding: 6px 10px; }
+  .search-box input { font-size: 12px; }
+  
+  /* Filters */
+  .filters-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-btn { width: 100%; }
+
+  /* Calendar */
+  .calendar-header-cell { font-size: 9px; padding: 6px; }
+  .calendar-cell { min-height: 80px; padding: 4px; }
+  .calendar-date { font-size: 10px; margin-bottom: 4px; }
+  .calendar-event { font-size: 9px; padding: 2px 4px; }
+  .calendar-event-time { font-size: 8px; }
+  
+  /* Board formation */
+  .board-grid { grid-template-columns: 1fr; }
+
+  /* Sections */
+  .section-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+/* SMALL MOBILE (max-width: 400px) */
+@media (max-width: 400px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .search-box { width: 130px; }
+}

@@ -218,6 +218,7 @@ export default function Dashboard() {
   const [activePage, setActivePage] = useState('dashboard');
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [searchQ, setSearchQ] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Filters for ATS
   const [filterStatus, setFilterStatus] = useState('All');
@@ -250,6 +251,16 @@ export default function Dashboard() {
     setConfirmDeleteId(null);
   }, [selectedApplicantId, resetInterviewForm]);
 
+  // Lock body scroll when overlay is open
+  useEffect(() => {
+    if (isSidebarOpen || selectedApplicantId) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => { document.body.style.overflow = 'auto'; }
+  }, [isSidebarOpen, selectedApplicantId]);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setShowToast(true);
@@ -257,7 +268,7 @@ export default function Dashboard() {
   };
 
   // Map backend format to frontend expected format
-  const applicants = rawApplicants.map((a: any) => {
+  const applicants = React.useMemo(() => rawApplicants.map((a: any) => {
     const eb_roles = a.applications.filter((app: any) => app.position.category === 'EXECUTIVE').map((app: any) => app.position.title);
     const mb_roles = a.applications.filter((app: any) => app.position.category !== 'EXECUTIVE').map((app: any) => app.position.title);
     return {
@@ -267,7 +278,7 @@ export default function Dashboard() {
       score: a.overallScore || Math.floor(55 + Math.random() * 45),
       notes: a.notes || []
     };
-  });
+  }), [rawApplicants]);
 
   const allRoles = (a: any) => [...(a.eb_roles || []), ...(a.mb_roles || [])];
   
@@ -288,7 +299,7 @@ export default function Dashboard() {
     );
   };
 
-  const filteredApplicants = () => {
+  const atsList = React.useMemo(() => {
     let list = [...applicants];
     if (filterStatus !== 'All') list = list.filter(a => a.status === filterStatus);
     if (filterRole !== 'All') list = list.filter(a => allRoles(a).some(r => r.includes(filterRole)));
@@ -310,7 +321,7 @@ export default function Dashboard() {
       return 0;
     });
     return list;
-  };
+  }, [applicants, filterStatus, filterRole, filterCollege, searchQ, sortKey, sortDir]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -427,56 +438,64 @@ export default function Dashboard() {
   if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
   if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
 
-  const atsList = filteredApplicants();
   const selectedApp = applicants.find(a => a.id === selectedApplicantId);
 
   // Group positions for Board Formation
-  const activePositions = positions.filter((p: any) => p.isActive);
-  const groupedPositions: Record<string, any[]> = {};
-  activePositions.forEach((p: any) => {
-    if (!groupedPositions[p.department]) groupedPositions[p.department] = [];
-    groupedPositions[p.department].push(p);
-  });
+  const groupedPositions = React.useMemo(() => {
+    const activePositions = positions.filter((p: any) => p.isActive);
+    const groups: Record<string, any[]> = {};
+    activePositions.forEach((p: any) => {
+      if (!groups[p.department]) groups[p.department] = [];
+      groups[p.department].push(p);
+    });
+    return groups;
+  }, [positions]);
 
-  const allInterviews = applicants.flatMap(a => (a.interviews || []).map((intv: any) => ({ ...intv, applicant: a })));
-  allInterviews.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  const allInterviews = React.useMemo(() => {
+    const intvs = applicants.flatMap(a => (a.interviews || []).map((intv: any) => ({ ...intv, applicant: a })));
+    intvs.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    return intvs;
+  }, [applicants]);
   
-  const todayInterviews = allInterviews.filter(i => new Date(i.scheduledAt).toDateString() === new Date().toDateString());
-  const upcomingInterviews = allInterviews.filter(i => new Date(i.scheduledAt).getTime() > new Date().getTime() && new Date(i.scheduledAt).toDateString() !== new Date().toDateString());
-  const completedInterviews = allInterviews.filter(i => i.status === 'COMPLETED');
-  const pendingScheduling = applicants.filter(a => a.status === 'APPLIED');
+  const todayInterviews = React.useMemo(() => allInterviews.filter(i => new Date(i.scheduledAt).toDateString() === new Date().toDateString()), [allInterviews]);
+  const upcomingInterviews = React.useMemo(() => allInterviews.filter(i => new Date(i.scheduledAt).getTime() > new Date().getTime() && new Date(i.scheduledAt).toDateString() !== new Date().toDateString()), [allInterviews]);
+  const completedInterviews = React.useMemo(() => allInterviews.filter(i => i.status === 'COMPLETED'), [allInterviews]);
+  const pendingScheduling = React.useMemo(() => applicants.filter(a => a.status === 'APPLIED'), [applicants]);
 
   return (
     <div className="app">
-      <div className="sidebar">
+      <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <button className="sidebar-close" onClick={() => setIsSidebarOpen(false)}><i className="ti ti-x"></i></button>
         <div className="logo">
           <div className="logo-title">MTTN Recruit</div>
           <div className="logo-sub">Board Selection 2026</div>
         </div>
         <div className="nav-group">
           <div className="nav-label">Overview</div>
-          <div className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => setActivePage('dashboard')}><i className="ti ti-layout-dashboard"></i>Dashboard</div>
-          <div className={`nav-item ${activePage === 'analytics' ? 'active' : ''}`} onClick={() => setActivePage('analytics')}><i className="ti ti-chart-bar"></i>Analytics</div>
+          <div className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => { setActivePage('dashboard'); setIsSidebarOpen(false); }}><i className="ti ti-layout-dashboard"></i>Dashboard</div>
+          <div className={`nav-item ${activePage === 'analytics' ? 'active' : ''}`} onClick={() => { setActivePage('analytics'); setIsSidebarOpen(false); }}><i className="ti ti-chart-bar"></i>Analytics</div>
         </div>
         <div className="nav-group">
           <div className="nav-label">Applicants</div>
-          <div className={`nav-item ${activePage === 'ats' ? 'active' : ''}`} onClick={() => setActivePage('ats')}><i className="ti ti-users"></i>All Applicants <span className="nav-badge">{applicants.length}</span></div>
-          <div className={`nav-item ${activePage === 'kanban' ? 'active' : ''}`} onClick={() => setActivePage('kanban')}><i className="ti ti-layout-columns"></i>Pipeline</div>
-          <div className={`nav-item ${activePage === 'interviews' ? 'active' : ''}`} onClick={() => setActivePage('interviews')}><i className="ti ti-calendar-event"></i>Interviews <span className="nav-badge">{allInterviews.filter(i => i.status === 'SCHEDULED').length}</span></div>
+          <div className={`nav-item ${activePage === 'ats' ? 'active' : ''}`} onClick={() => { setActivePage('ats'); setIsSidebarOpen(false); }}><i className="ti ti-users"></i>All Applicants <span className="nav-badge">{applicants.length}</span></div>
+          <div className={`nav-item ${activePage === 'kanban' ? 'active' : ''}`} onClick={() => { setActivePage('kanban'); setIsSidebarOpen(false); }}><i className="ti ti-layout-columns"></i>Pipeline</div>
+          <div className={`nav-item ${activePage === 'interviews' ? 'active' : ''}`} onClick={() => { setActivePage('interviews'); setIsSidebarOpen(false); }}><i className="ti ti-calendar-event"></i>Interviews <span className="nav-badge">{allInterviews.filter(i => i.status === 'SCHEDULED').length}</span></div>
         </div>
         <div className="nav-group">
           <div className="nav-label">Decisions</div>
-          <div className={`nav-item ${activePage === 'board' ? 'active' : ''}`} onClick={() => setActivePage('board')}><i className="ti ti-crown"></i>Board Formation</div>
-          <div className={`nav-item ${activePage === 'results' ? 'active' : ''}`} onClick={() => setActivePage('results')}><i className="ti ti-check"></i>Results <span className="nav-badge">{completedInterviews.length}</span></div>
+          <div className={`nav-item ${activePage === 'board' ? 'active' : ''}`} onClick={() => { setActivePage('board'); setIsSidebarOpen(false); }}><i className="ti ti-crown"></i>Board Formation</div>
+          <div className={`nav-item ${activePage === 'results' ? 'active' : ''}`} onClick={() => { setActivePage('results'); setIsSidebarOpen(false); }}><i className="ti ti-check"></i>Results <span className="nav-badge">{completedInterviews.length}</span></div>
         </div>
         <div className="nav-group">
           <div className="nav-label">System</div>
-          <div className={`nav-item ${activePage === 'settings' ? 'active' : ''}`} onClick={() => setActivePage('settings')}><i className="ti ti-settings"></i>Admin Settings</div>
+          <div className={`nav-item ${activePage === 'settings' ? 'active' : ''}`} onClick={() => { setActivePage('settings'); setIsSidebarOpen(false); }}><i className="ti ti-settings"></i>Admin Settings</div>
         </div>
       </div>
 
       <div className="main" id="main">
         <div className="topbar">
+          <button className="hamburger" onClick={() => setIsSidebarOpen(true)}><i className="ti ti-menu-2"></i></button>
           <div className="page-title">{activePage.charAt(0).toUpperCase() + activePage.slice(1)}</div>
           <div className="topbar-right">
             <div className="search-box">
@@ -816,10 +835,10 @@ export default function Dashboard() {
             <div className="section-header">
               <div><div className="section-title">Board Formation ({boardFormation?.name})</div><div className="section-sub">Drag and drop candidates to assign to slots</div></div>
             </div>
-            <div style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 180px)' }}>
+            <div className="board-wrapper">
               
               {/* Draggable candidates list */}
-              <div style={{ flex: '0 0 300px', background: 'var(--bg2)', borderRadius: '12px', padding: '16px', overflowY: 'auto', border: '1px solid var(--border)' }}>
+              <div className="board-candidates">
                 <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text3)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Candidates (Interviewed/Selected)</div>
                 {applicants.filter(a => a.status === 'INTERVIEWED' || a.status === 'SELECTED').map(a => (
                   <div 
@@ -830,17 +849,43 @@ export default function Dashboard() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div className="avatar-sm" style={{background: avatarColor(a.id), width: '24px', height: '24px', fontSize: '10px'}}>{initials(a.name)}</div>
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{a.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '4px' }}>{renderRoleTags(a)}</div>
                       </div>
+                    </div>
+                    {/* Touch-friendly assignment fallback */}
+                    <div className="board-assign-mobile" style={{ marginTop: '10px' }}>
+                      <select 
+                        className="status-select" 
+                        style={{ width: '100%', fontSize: '11px', padding: '6px' }}
+                        value=""
+                        onChange={(e) => {
+                           if(e.target.value && boardFormation?.id) {
+                             const pos = positions.find((p: any) => p.id === e.target.value);
+                             const filledSlots = pos?.boardSlots?.filter((bs: any) => bs.formationId === boardFormation.id).length || 0;
+                             if (pos && filledSlots >= pos.slotCount) {
+                               showToast("Maximum slots filled for this position!");
+                               e.target.value = "";
+                               return;
+                             }
+                             assignSlotMut.mutate({ applicantId: a.id, positionId: e.target.value, formationId: boardFormation.id });
+                             e.target.value = "";
+                           }
+                        }}
+                      >
+                        <option value="">+ Quick Assign...</option>
+                        {positions.filter((p:any) => p.isActive).map((p:any) => (
+                          <option key={p.id} value={p.id}>{p.department} - {p.shortCode}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Droppable Slots by Department */}
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+              <div className="board-slots-area">
                 <div className="kanban" style={{ padding: 0 }}>
                   {Object.entries(groupedPositions).map(([dept, posList]) => (
                     <div key={dept} className="kanban-col" style={{ minWidth: '280px' }}>
