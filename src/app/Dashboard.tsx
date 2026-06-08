@@ -353,18 +353,32 @@ export default function Dashboard() {
     
     if (filterPosition !== 'All') {
       list = list.filter(a => {
-        const score = getHierarchyScore(a);
-        if (filterPosition === 'EiC') return score === 1;
-        if (filterPosition === 'ME') return score === 2;
-        if (filterPosition === 'HR') return score === 3;
-        if (filterPosition === 'Head') return score === 4;
-        if (filterPosition === 'SubHead') return score === 5;
+        const hasTier = (tier: number) => a.applications?.some((app: any) => {
+          const code = (app.position?.shortCode || '').toUpperCase();
+          let score = 6;
+          if (code === 'EIC') score = 1;
+          else if (code === 'ME') score = 2;
+          else if (code === 'HOHR') score = 3;
+          else if (code.startsWith('HO')) score = 4;
+          else if (code.startsWith('SH') || code.includes('SUBHEAD')) score = 5;
+          return score === tier;
+        });
+
+        if (filterPosition === 'EiC') return hasTier(1);
+        if (filterPosition === 'ME') return hasTier(2);
+        if (filterPosition === 'HR') return hasTier(3);
+        if (filterPosition === 'Head') return hasTier(4);
+        if (filterPosition === 'SubHead') return hasTier(5);
         return false;
       });
     }
 
     if (filterDepartment !== 'All') {
-      list = list.filter(a => getPrimaryDepartment(a) === filterDepartment);
+      list = list.filter(a => a.applications?.some((app: any) => {
+        const d = app.position?.department || '';
+        if (filterDepartment === 'Arts & Graphics') return d === 'Arts and Graphics';
+        return d === filterDepartment;
+      }));
     }
 
     if (searchQ) {
