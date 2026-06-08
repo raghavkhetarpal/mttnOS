@@ -222,9 +222,9 @@ export default function Dashboard() {
   
   // Filters for ATS
   const [filterStatus, setFilterStatus] = useState('All');
-  const [filterRole, setFilterRole] = useState('All');
   const [filterCollege, setFilterCollege] = useState('All');
-  const [filterGroup, setFilterGroup] = useState('None');
+  const [filterPosition, setFilterPosition] = useState('All');
+  const [filterDepartment, setFilterDepartment] = useState('All');
   const [sortKey, setSortKey] = useState('appliedAt');
   const [sortDir, setSortDir] = useState(1);
 
@@ -349,8 +349,24 @@ export default function Dashboard() {
   const atsList = React.useMemo(() => {
     let list = [...applicants];
     if (filterStatus !== 'All') list = list.filter(a => a.status === filterStatus);
-    if (filterRole !== 'All') list = list.filter(a => allRoles(a).some(r => r.includes(filterRole)));
     if (filterCollege !== 'All') list = list.filter(a => a.college === filterCollege);
+    
+    if (filterPosition !== 'All') {
+      list = list.filter(a => {
+        const score = getHierarchyScore(a);
+        if (filterPosition === 'EiC') return score === 1;
+        if (filterPosition === 'ME') return score === 2;
+        if (filterPosition === 'HR') return score === 3;
+        if (filterPosition === 'Head') return score === 4;
+        if (filterPosition === 'SubHead') return score === 5;
+        return false;
+      });
+    }
+
+    if (filterDepartment !== 'All') {
+      list = list.filter(a => getPrimaryDepartment(a) === filterDepartment);
+    }
+
     if (searchQ) {
       const q = searchQ.toLowerCase();
       list = list.filter(a => 
@@ -376,7 +392,7 @@ export default function Dashboard() {
       return 0;
     });
     return list;
-  }, [applicants, filterStatus, filterRole, filterCollege, searchQ, sortKey, sortDir]);
+  }, [applicants, filterStatus, filterPosition, filterDepartment, filterCollege, searchQ, sortKey, sortDir]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -517,18 +533,23 @@ export default function Dashboard() {
   const pendingScheduling = React.useMemo(() => applicants.filter(a => a.status === 'APPLIED'), [applicants]);
 
   const groupedAts = React.useMemo(() => {
-    if (filterGroup === 'None') return { 'All Applicants': atsList };
     const groups: Record<string, any[]> = {};
     atsList.forEach(a => {
-      let g = 'Unassigned';
-      if (filterGroup === 'Department') g = getPrimaryDepartment(a);
-      else if (filterGroup === 'RoleType') g = getRoleTypeGroup(a);
-      else if (filterGroup === 'Status') g = STATUS_LABELS[a.status as keyof typeof STATUS_LABELS] || a.status;
+      const g = getPrimaryDepartment(a);
       if (!groups[g]) groups[g] = [];
       groups[g].push(a);
     });
-    return groups;
-  }, [atsList, filterGroup]);
+    
+    // Sort groups so that unassigned is last
+    const sortedGroups: Record<string, any[]> = {};
+    Object.keys(groups).sort((a, b) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    }).forEach(k => sortedGroups[k] = groups[k]);
+    
+    return sortedGroups;
+  }, [atsList]);
 
   if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
   if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
@@ -738,9 +759,23 @@ export default function Dashboard() {
                 <option value="All">All Statuses</option>
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
-              <select className="filter-btn" value={filterRole} onChange={(e) => setFilterRole(e.target.value)}>
-                <option value="All">All Roles</option>
-                {['Photography','Videography','Art','Writing','BDPR','Web','HR'].map(r => <option key={r} value={r}>{r}</option>)}
+              <select className="filter-btn" value={filterPosition} onChange={(e) => setFilterPosition(e.target.value)}>
+                <option value="All">Position Hierarchy</option>
+                <option value="EiC">EiC</option>
+                <option value="ME">ME</option>
+                <option value="HR">HoHR</option>
+                <option value="Head">Heads</option>
+                <option value="SubHead">SubHeads</option>
+              </select>
+              <select className="filter-btn" value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
+                <option value="All">Department</option>
+                <option value="Photography">Photography</option>
+                <option value="Videography">Videography</option>
+                <option value="Arts & Graphics">Arts & Graphics</option>
+                <option value="BDPR">BDPR</option>
+                <option value="Development">Development</option>
+                <option value="Writing">Writing</option>
+                <option value="HR">HR</option>
               </select>
               <select className="filter-btn" value={filterCollege} onChange={(e) => setFilterCollege(e.target.value)}>
                 <option value="All">All Colleges</option>
@@ -752,12 +787,6 @@ export default function Dashboard() {
                 <option value="college">Sort: College</option>
                 <option value="semester">Sort: Semester</option>
                 <option value="hierarchy">Sort: Position Hierarchy</option>
-              </select>
-              <select className="filter-btn" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
-                <option value="None">Group By: None</option>
-                <option value="Department">Group By: Department</option>
-                <option value="RoleType">Group By: Role Type</option>
-                <option value="Status">Group By: Interview Status</option>
               </select>
             </div>
             <div className="table-wrap">
@@ -773,13 +802,11 @@ export default function Dashboard() {
                 <tbody>
                   {Object.entries(groupedAts).map(([groupName, applicantsInGroup]) => (
                     <React.Fragment key={groupName}>
-                      {filterGroup !== 'None' && (
-                        <tr>
-                          <td colSpan={5} style={{ background: 'var(--bg2)', color: 'var(--text)', fontWeight: 600, fontSize: '12px', padding: '12px 16px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>
-                            {groupName} <span style={{ color: 'var(--text3)', marginLeft: '8px' }}>({applicantsInGroup.length})</span>
-                          </td>
-                        </tr>
-                      )}
+                      <tr>
+                        <td colSpan={5} style={{ background: 'var(--bg2)', color: 'var(--text)', fontWeight: 600, fontSize: '12px', padding: '12px 16px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>
+                          {groupName} <span style={{ color: 'var(--text3)', marginLeft: '8px' }}>({applicantsInGroup.length})</span>
+                        </td>
+                      </tr>
                       {applicantsInGroup.map(a => (
                         <tr key={a.id} onClick={() => setSelectedApplicantId(a.id)}>
                           <td>
