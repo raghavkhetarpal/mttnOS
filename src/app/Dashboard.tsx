@@ -532,24 +532,7 @@ export default function Dashboard() {
   const completedInterviews = React.useMemo(() => allInterviews.filter(i => i.status === 'COMPLETED'), [allInterviews]);
   const pendingScheduling = React.useMemo(() => applicants.filter(a => a.status === 'APPLIED'), [applicants]);
 
-  const groupedAts = React.useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    atsList.forEach(a => {
-      const g = getPrimaryDepartment(a);
-      if (!groups[g]) groups[g] = [];
-      groups[g].push(a);
-    });
-    
-    // Sort groups so that unassigned is last
-    const sortedGroups: Record<string, any[]> = {};
-    Object.keys(groups).sort((a, b) => {
-      if (a === 'Unassigned') return 1;
-      if (b === 'Unassigned') return -1;
-      return a.localeCompare(b);
-    }).forEach(k => sortedGroups[k] = groups[k]);
-    
-    return sortedGroups;
-  }, [atsList]);
+
 
   if (isLoading || isLoadingPos || isLoadingBoard) return <div className="p-8 text-white">Loading data...</div>;
   if (isError) return <div className="p-8 text-red-500">Error loading data: {String(error)}</div>;
@@ -800,35 +783,26 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(groupedAts).map(([groupName, applicantsInGroup]) => (
-                    <React.Fragment key={groupName}>
-                      <tr>
-                        <td colSpan={5} style={{ background: 'var(--bg2)', color: 'var(--text)', fontWeight: 600, fontSize: '12px', padding: '12px 16px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>
-                          {groupName} <span style={{ color: 'var(--text3)', marginLeft: '8px' }}>({applicantsInGroup.length})</span>
-                        </td>
-                      </tr>
-                      {applicantsInGroup.map(a => (
-                        <tr key={a.id} onClick={() => setSelectedApplicantId(a.id)}>
-                          <td>
-                            <div className="name-cell">
-                              <div className="avatar-sm" style={{background: avatarColor(a.id)}}>{initials(a.name)}</div>
-                              <div>
-                                <div className="td-name">{a.name}</div>
-                                <div className="td-meta">{a.email} {a.phone ? `· ${a.phone}` : ''}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td><span className={`tag tag-${(a.college||'').toLowerCase()}`}>{a.college}</span></td>
-                          <td style={{fontSize: '12px', color: 'var(--text3)'}}>{renderRoleTags(a)}</td>
-                          <td><span className={`status-badge ${STATUS_CLASS[a.status as keyof typeof STATUS_CLASS] || ''}`}>{STATUS_LABELS[a.status as keyof typeof STATUS_LABELS] || a.status}</span></td>
-                          <td onClick={e => e.stopPropagation()}>
-                            <select className="status-select" value={a.status} onChange={(e) => updateStatusMut.mutate({ id: a.id, status: e.target.value as ApplicantStatus })}>
-                              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s as keyof typeof STATUS_LABELS]}</option>)}
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
+                  {atsList.map(a => (
+                    <tr key={a.id} onClick={() => setSelectedApplicantId(a.id)}>
+                      <td>
+                        <div className="name-cell">
+                          <div className="avatar-sm" style={{background: avatarColor(a.id)}}>{initials(a.name)}</div>
+                          <div>
+                            <div className="td-name">{a.name}</div>
+                            <div className="td-meta">{a.email} {a.phone ? `· ${a.phone}` : ''}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className={`tag tag-${(a.college||'').toLowerCase()}`}>{a.college}</span></td>
+                      <td style={{fontSize: '12px', color: 'var(--text3)'}}>{renderRoleTags(a)}</td>
+                      <td><span className={`status-badge ${STATUS_CLASS[a.status as keyof typeof STATUS_CLASS] || ''}`}>{STATUS_LABELS[a.status as keyof typeof STATUS_LABELS] || a.status}</span></td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <select className="status-select" value={a.status} onChange={(e) => updateStatusMut.mutate({ id: a.id, status: e.target.value as ApplicantStatus })}>
+                          {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s as keyof typeof STATUS_LABELS]}</option>)}
+                        </select>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
