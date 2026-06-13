@@ -66,6 +66,16 @@ function normalizeRoleString(raw: string): string | null {
   return null;
 }
 
+function normalizeCollegeString(raw: string): string {
+  if (!raw) return "MIT";
+  const s = raw.toLowerCase().replace(/[^a-z]/g, '');
+  if (s.includes("mic")) return "MIC";
+  if (s.includes("msce")) return "MSCE";
+  if (s.includes("misha")) return "MISHA";
+  if (s.includes("mit")) return "MIT";
+  return "MIT";
+}
+
 // Convert "Head of X, Head of Y" string into an array of canonical shortcodes/titles
 function extractCanonicalRoles(roleStr: string): string[] {
   if (!roleStr) return [];
@@ -136,7 +146,7 @@ async function main() {
     if (!email) continue;
     
     const name = row["Name"]?.trim() || "Unknown";
-    const college = row["College"]?.trim() || "Unknown";
+    const college = normalizeCollegeString(row["College"]);
     const semester = row["Semester"]?.trim() || "Unknown";
     const whyFit = row["Why do you think you’re the best fit for the post?"] || "";
     const planOfAction = row["If you are applying for any Executive Board (EB) or Managing Board (MB) position, please answer the following:\nWhat would be your Plan of Action if selected for the post(s) you’ve applied for?\nYou may either:\nWrite your answer in the space provided below, or\nUpload a video (e.g., via Google Drive or YouTube link)\n->If using Google Drive: Ensure the link is viewable by “Anyone with the link.”\n-> If using YouTube: The video should be set to Unlisted or Public (not Private)."] || "";

@@ -43,6 +43,17 @@ function linkify(text: string | null | undefined): React.ReactNode | null {
     return <span key={i}>{part}</span>;
   });
 }
+
+export function normalizeCollegeString(raw: string): string {
+  if (!raw) return "MIT";
+  const s = raw.toLowerCase().replace(/[^a-z]/g, '');
+  if (s.includes("mic")) return "MIC";
+  if (s.includes("msce")) return "MSCE";
+  if (s.includes("misha")) return "MISHA";
+  if (s.includes("mit")) return "MIT";
+  return "MIT";
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { data: rawApplicants = [], isLoading, isError, error } = useQuery({ queryKey: ['applicants'], queryFn: () => getApplicants() });
@@ -141,8 +152,13 @@ export default function Dashboard() {
         if (!old) return old;
         return old.map((a: any) => {
           if (a.id === vars.applicantId) {
+            let newAppStatus = a.status;
+            if (vars.status === 'COMPLETED' && a.status === 'INTERVIEW_SCHEDULED') newAppStatus = 'INTERVIEWED';
+            else if (vars.status === 'SCHEDULED' && a.status === 'INTERVIEWED') newAppStatus = 'INTERVIEW_SCHEDULED';
+            
             return {
               ...a,
+              status: newAppStatus,
               interviews: a.interviews.map((intv: any) => intv.id === vars.id ? { ...intv, status: vars.status } : intv)
             };
           }
@@ -312,6 +328,7 @@ MTTN Board`;
     const mb_roles = a.applications.filter((app: any) => app.position.category !== 'EXECUTIVE').map((app: any) => app.position.title);
     return {
       ...a,
+      college: normalizeCollegeString(a.college),
       eb_roles,
       mb_roles,
       score: a.overallScore || Math.floor(55 + Math.random() * 45),
@@ -815,7 +832,7 @@ MTTN Board`;
               </select>
               <select className="filter-btn" value={filterCollege} onChange={(e) => setFilterCollege(e.target.value)}>
                 <option value="All">All Colleges</option>
-                {['MIT','SOC','DOC','TAPMI','WGSHA'].map(c => <option key={c} value={c}>{c}</option>)}
+                {['MIC','MIT','MSCE','MISHA'].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <select className="filter-btn" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
                 <option value="appliedAt">Sort: Timestamp</option>
@@ -1229,7 +1246,7 @@ MTTN Board`;
                     {editingInterviewId === null && <button className="btn btn-outline" style={{ fontSize: '10px', padding: '2px 6px' }} onClick={() => { resetInterviewForm(); setEditingInterviewId('NEW'); }}><i className="ti ti-plus"></i> New</button>}
                   </div>
                   {(() => {
-                    const isBusy = scheduleInterviewMut.isPending || updateInterviewDetailsMut.isPending || deleteInterviewMut.isPending;
+                    const isBusy = scheduleInterviewMut.isPending || updateInterviewDetailsMut.isPending || deleteInterviewMut.isPending || updateInterviewMut.isPending;
                     const interviews = selectedApp.interviews || [];
                     const isCreatingNew = editingInterviewId === 'NEW';
                     
@@ -1265,8 +1282,26 @@ MTTN Board`;
                               </div>
                             </div>
 
-                            <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px'}}>
-                              <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px'}} disabled={isBusy} onClick={() => updateInterviewMut.mutate({ applicantId: selectedApp.id, id: existingIntv.id, status: 'COMPLETED' })}>{updateInterviewMut.isPending ? '...' : 'Mark Completed'}</button>
+                            <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px', alignItems: 'center'}}>
+                              <div style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: isBusy ? 'not-allowed' : 'pointer', background: existingIntv.status === 'COMPLETED' ? '#10b98115' : 'var(--bg1)', padding: '4px 8px', borderRadius: '6px', border: `1px solid ${existingIntv.status === 'COMPLETED' ? '#10b98140' : 'var(--border)'}`, transition: 'all 0.2s', opacity: (updateInterviewMut.isPending && updateInterviewMut.variables?.id === existingIntv.id) ? 0.6 : 1}} onClick={() => {
+                                if (isBusy) return;
+                                const nextStatus = existingIntv.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED';
+                                updateInterviewMut.mutate({ applicantId: selectedApp.id, id: existingIntv.id, status: nextStatus });
+                              }}>
+                                <div style={{
+                                  width: '28px', height: '16px', background: existingIntv.status === 'COMPLETED' ? '#10b981' : 'var(--border2)', 
+                                  borderRadius: '99px', position: 'relative', transition: 'background 0.2s'
+                                }}>
+                                  <div style={{
+                                    width: '12px', height: '12px', background: '#fff', borderRadius: '50%', position: 'absolute', 
+                                    top: '2px', left: existingIntv.status === 'COMPLETED' ? '14px' : '2px', transition: 'left 0.2s',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                                  }}></div>
+                                </div>
+                                <span style={{fontSize: '11px', fontWeight: 600, color: existingIntv.status === 'COMPLETED' ? '#10b981' : 'var(--text3)'}}>
+                                  {existingIntv.status === 'COMPLETED' ? 'Completed' : 'Scheduled'}
+                                </span>
+                              </div>
                               <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px'}} disabled={isBusy} onClick={() => updateInterviewMut.mutate({ applicantId: selectedApp.id, id: existingIntv.id, status: 'MISSED' })}>Mark Missed</button>
                               <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px'}} disabled={isBusy} onClick={() => setEvalForm({...evalForm, interviewId: evalForm.interviewId === existingIntv.id ? '' : existingIntv.id})}>Evaluate</button>
                               <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px', color: '#60a5fa', borderColor: '#1e3a8a'}} disabled={isBusy} onClick={() => {

@@ -4,6 +4,7 @@ import { ApplicantStatus } from "@prisma/client";
 import { prisma } from "./db";
 import { revalidatePath } from "next/cache";
 
+
 export async function getApplicants() {
   return prisma.applicant.findMany({
     include: {
@@ -187,6 +188,11 @@ export async function updateInterviewStatus(id: string, status: 'SCHEDULED' | 'C
     await prisma.applicant.update({
       where: { id: res.applicantId },
       data: { status: 'INTERVIEWED' }
+    });
+  } else if (status === 'SCHEDULED' && res.applicant.status === 'INTERVIEWED') {
+    await prisma.applicant.update({
+      where: { id: res.applicantId },
+      data: { status: 'INTERVIEW_SCHEDULED' }
     });
   }
 
