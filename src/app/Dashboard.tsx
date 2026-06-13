@@ -269,10 +269,10 @@ ${posText}
 
 has been scheduled for:
 
-📅 Date: ${dStr}
-⏰ Time: ${tStr}
+\uD83D\uDCC5 Date: ${dStr}
+\u23F0 Time: ${tStr}
 
-🔗 Meeting Link:
+\uD83D\uDD17 Meeting Link:
 ${link || 'Will be shared soon'}
 
 Please ensure you join on time and keep your camera and microphone ready.
