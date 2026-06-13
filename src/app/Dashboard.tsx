@@ -244,6 +244,45 @@ export default function Dashboard() {
     setEditingInterviewId(null);
   }, []);
 
+  const generateWhatsAppLink = useCallback((applicant: any, dateStr: string, link: string, positions: string[]) => {
+    if (!applicant?.phone) return null;
+    let phone = applicant.phone.replace(/[^0-9]/g, '');
+    if (phone.length === 10) phone = '91' + phone;
+    
+    let dStr = 'TBD';
+    let tStr = 'TBD';
+    if (dateStr) {
+      const dt = new Date(dateStr);
+      if (!isNaN(dt.getTime())) {
+        dStr = dt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        tStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    const posText = positions && positions.length > 0 ? positions.join(', ') : 'MTTN Board';
+    const msg = `Hello ${applicant.name?.split(' ')[0] || ''},
+
+Thank you for applying to MTTN.
+
+Your interview for the following position(s):
+${posText}
+
+has been scheduled for:
+
+📅 Date: ${dStr}
+⏰ Time: ${tStr}
+
+🔗 Meeting Link:
+${link || 'Will be shared soon'}
+
+Please ensure you join on time and keep your camera and microphone ready.
+
+Regards,
+MTTN Board`;
+
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  }, []);
+
   // Clear forms when switching applicant
   useEffect(() => {
     resetInterviewForm();
@@ -1240,6 +1279,19 @@ export default function Dashboard() {
                               ) : (
                                 <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px', color: '#fca5a5', borderColor: '#7f1d1d'}} onClick={() => setConfirmDeleteId(existingIntv.id)}><i className="ti ti-trash"></i></button>
                               )}
+                              
+                              {(() => {
+                                const waLink = generateWhatsAppLink(selectedApp, existingIntv.scheduledAt, existingIntv.link || '', existingIntv.positions?.map((p: any) => p.position?.shortCode) || []);
+                                return waLink ? (
+                                  <a href={waLink} target="_blank" rel="noreferrer" className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px', borderColor: '#22c55e', color: '#22c55e'}}>
+                                    <i className="ti ti-brand-whatsapp"></i> Send Invite
+                                  </a>
+                                ) : (
+                                  <button className="btn btn-outline" style={{fontSize: '11px', padding: '4px 8px', borderColor: 'var(--border2)', color: 'var(--text3)'}} disabled title="No valid phone number">
+                                    <i className="ti ti-brand-whatsapp"></i> Send Invite
+                                  </button>
+                                );
+                              })()}
                             </div>
 
                             {existingIntv.remarks && (
@@ -1291,7 +1343,7 @@ export default function Dashboard() {
                               {AVAILABLE_INTERVIEWERS.filter(i => !interviewForm.interviewers.includes(i)).map(i => (<div key={i} style={{background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer'}} onClick={() => setInterviewForm({...interviewForm, interviewers: [...interviewForm.interviewers, i]})}>+ {i}</div>))}
                             </div>
                           </div>
-                          <div style={{display: 'flex', gap: '8px'}}>
+                          <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
                             <button className="btn btn-green" style={{flex: 1, justifyContent: 'center'}} disabled={!interviewForm.date || isBusy} onClick={() => {
                               if (!isCreatingNew && editingInterviewId) {
                                 updateInterviewDetailsMut.mutate({ applicantId: selectedApp.id, interviewId: editingInterviewId, scheduledAt: new Date(interviewForm.date), link: interviewForm.link, targetPositions: interviewForm.targetPositions, interviewers: interviewForm.interviewers });
@@ -1300,6 +1352,19 @@ export default function Dashboard() {
                               }
                             }}>{isBusy ? '⏳ Saving...' : !isCreatingNew ? 'Update Interview' : 'Schedule Interview'}</button>
                             <button className="btn btn-outline" style={{padding: '6px 14px'}} onClick={() => { resetInterviewForm(); setEditingInterviewId(null); }}>Cancel</button>
+
+                            {(() => {
+                              const waLink = generateWhatsAppLink(selectedApp, interviewForm.date, interviewForm.link, interviewForm.targetPositions);
+                              return waLink ? (
+                                <a href={waLink} target="_blank" rel="noreferrer" className="btn btn-outline" style={{padding: '6px 14px', borderColor: '#22c55e', color: '#22c55e'}} title="Generate WhatsApp message with current form data">
+                                  <i className="ti ti-brand-whatsapp"></i> Send Invite
+                                </a>
+                              ) : (
+                                <button className="btn btn-outline" style={{padding: '6px 14px', borderColor: 'var(--border2)', color: 'var(--text3)'}} disabled title="No valid phone number">
+                                  <i className="ti ti-brand-whatsapp"></i> Send Invite
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
